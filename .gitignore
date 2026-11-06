@@ -1,0 +1,35 @@
+# Dependencies and Expo-generated local files
+node_modules/
+.expo/
+expo-env.d.ts
+
+# Build output and generated native projects (managed through app.json/plugins)
+dist/
+web-build/
+/android/
+/ios/
+*.tsbuildinfo
+*.apk
+*.aab
+*.ipa
+
+# Local environment files; an example with no secrets may be committed
+.env
+.env.*
+!.env.example
+
+# Signing credentials: managed by course staff, never committed
+credentials.json
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Logs and OS files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
