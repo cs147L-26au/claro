@@ -32,6 +32,12 @@
       "ios": {
         "simulator": true
       }
+    },
+    "development-testflight": {
+      "extends": "development",
+      "developmentClient": true,
+      "distribution": "store",
+      "autoIncrement": true
     }
   }
 }

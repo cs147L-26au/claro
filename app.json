@@ -1,24 +1,24 @@
 {
   "expo": {
     "name": "Final Project",
-    "slug": "cs147l-final-project-starter",
+    "slug": "claro",
     "version": "1.0.0",
     "platforms": [
       "ios",
       "android"
     ],
-    "scheme": "cs147lstarter",
+    "scheme": "cs147l-26au-claro",
     "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.example.cs147lfinalstarter"
+      "bundleIdentifier": "edu.stanford.cs147l.au2026.claro"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.example.cs147lfinalstarter"
+      "package": "edu.stanford.cs147l.au2026.claro"
     },
     "plugins": [
       "expo-router",
@@ -34,6 +34,17 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "owner": "cs147l-26au",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "cd98213d-b1ec-404a-8a5e-7bf638c9aa7a"
+      }
     }
   }
 }
