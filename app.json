@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "Final Project",
+    "name": "Claro",
     "slug": "claro",
     "version": "1.0.0",
     "platforms": [
       "ios",
-      "android"
+      "android",
+      "web"
     ],
     "scheme": "cs147l-26au-claro",
     "icon": "./assets/icon.png",
@@ -45,6 +46,10 @@
       "eas": {
         "projectId": "cd98213d-b1ec-404a-8a5e-7bf638c9aa7a"
       }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
     }
   }
 }
