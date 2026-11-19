@@ -5,8 +5,11 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { router } from 'expo-router';
 
 export const theme = { bg: '#FBF7ED', teal: '#105B56', ink: '#293F3D', muted: '#737871', border: '#D6DAD1', soft: '#EAEEE3', white: '#FFFFFF', gold: '#F2BE63', error: '#9B4039' };
-export type IconName = 'home' | 'tasks' | 'priorities' | 'decision' | 'plus' | 'arrow' | 'back' | 'check' | 'search' | 'close' | 'archive' | 'sparkles' | 'layers' | 'edit';
+export type IconName = 'home' | 'tasks' | 'priorities' | 'decision' | 'plus' | 'arrow' | 'back' | 'check' | 'search' | 'close' | 'archive' | 'sparkles' | 'layers' | 'edit' | 'account' | 'history' | 'calendar';
 const paths: Record<IconName, string> = {
+  calendar: 'M4 5H20V21H4ZM8 2V8M16 2V8M4 10H20M8 14H10M14 14H16M8 18H10',
+  history: 'M3 11A9 9 0 1 1 5.5 18M3 4V11H10M12 7V12L16 14',
+  account: 'M16 7A4 4 0 1 1 8 7 4 4 0 0 1 16 7ZM4 22V19A8 8 0 0 1 20 19V22',
   home: 'M3 10 12 3 21 10V21H15V14H9V21H3Z',
   tasks: 'M10 5H21M10 12H21M10 19H21M3 4H6V7H3ZM3 11H6V14H3ZM2 19 4 21 7 17',
   priorities: 'M4 3V8M4 12V21M12 3V14M12 18V21M20 3V5M20 9V21M1 8H7M9 14H15M17 5H23',

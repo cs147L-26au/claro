@@ -9,6 +9,8 @@ web-build/
 /android/
 /ios/
 *.tsbuildinfo
+supabase/.temp/
+supabase/.branches/
 *.apk
 *.aab
 *.ipa
