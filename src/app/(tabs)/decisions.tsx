@@ -24,6 +24,6 @@ export default function Decisions() {
       <Body>{d.choice}</Body><View style={s.divider} /><Text style={s.small}>{d.reviewDate ? `Review · ${dateLabel(d.reviewDate)}` : `Saved · ${new Date(d.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}</Text>
     </Card></Pressable>)}
     {!filtered.length && <Empty title={query ? 'No matching decisions' : filter === 'Archived' ? 'Nothing archived yet' : 'Keep the why behind your choices'} text={query ? 'Try another search or change your filter.' : filter === 'Archived' ? 'Archive a decision when you no longer need to review it. You can restore it anytime.' : 'Save your first decision, what you chose, and what helped you get there.'} />}
-    <Text style={[s.small, { textAlign: 'center' }]}>Saved on this device · Available offline</Text>
+    <Text style={[s.small, { textAlign: 'center' }]}>Saved to your account · Synced across devices</Text>
   </Page>;
 }

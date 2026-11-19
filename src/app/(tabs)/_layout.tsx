@@ -7,7 +7,8 @@ export default function TabLayout() {
     tabBarLabelStyle: { fontSize: 12, marginTop: 3 }, tabBarItemStyle: { maxWidth: 180 },
     tabBarHideOnKeyboard: true,
   }}>
-    {([['index', 'Home', 'home'], ['tasks', 'Task', 'tasks'], ['priorities', 'Priorities', 'priorities'], ['decisions', 'Decision', 'decision']] as const).map(([name, title, icon]) =>
+    {([['index', 'Home', 'home'], ['tasks', 'Task', 'tasks'], ['priorities', 'Priorities', 'priorities'], ['calendar', 'Calendar', 'calendar']] as const).map(([name, title, icon]) =>
       <Tabs.Screen key={name} name={name} options={{ title, tabBarIcon: ({ color }) => <Icon name={icon as IconName} color={typeof color === 'string' ? color : theme.teal} /> }} />)}
+    <Tabs.Screen name="decisions" options={{ href: null }} />
   </Tabs>;
 }
