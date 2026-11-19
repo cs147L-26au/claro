@@ -1,13 +1,22 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { Factor, validateFactors } from './model';
+import { DecisionBrief, requestDecisionPriorities } from './decision-ai';
+import type { DecisionPlanInput } from './decision-plan';
+import { requestDecisionPlan } from './decision-plan-client';
 export type Suggestion = { summary: string; factors: { id: string; weight: number; reason: string }[] };
 function apiUrl() {
   const configured = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
   if (configured) return configured;
-  if (!__DEV__) throw new Error('AI is not connected in this build. You can still set and save priorities manually.');
+  if (!__DEV__) throw new Error('Recommendations are not connected in this build. Please try again once the service is available.');
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
   return `http://${host || (Platform.OS === 'android' ? '10.0.2.2' : 'localhost')}:8787`;
+}
+export function suggestDecisionPriorities(brief: DecisionBrief, signal?: AbortSignal) {
+  return requestDecisionPriorities(apiUrl(), brief, { signal });
+}
+export function generateTaskDecisionPlan(input: DecisionPlanInput, signal?: AbortSignal) {
+  return requestDecisionPlan(apiUrl(), input, signal);
 }
 export async function suggestPriorities(context: string, factors: Factor[]): Promise<Suggestion> {
   const controller = new AbortController();

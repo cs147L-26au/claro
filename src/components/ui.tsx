@@ -29,11 +29,11 @@ export function Brand({ title = 'Claro' }: { title?: string }) {
     <Path d="M28 11 32 5M31 16 38 13M32 22H39M29 28 35 33M25 7 26 2" stroke={theme.gold} strokeWidth={2.8} strokeLinecap="round" />
   </Svg><Text style={s.brandText}>{title}</Text></View>;
 }
-export function Page({ children, title, back, action }: { children: React.ReactNode; title: string; back?: boolean; action?: React.ReactNode }) {
+export function Page({ children, title, back, action, onBack }: { children: React.ReactNode; title: string; back?: boolean; action?: React.ReactNode; onBack?: () => void }) {
   return <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={s.header}>
-        <View style={s.headerSide}>{back && <IconButton name="back" label="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />}</View>
+        <View style={s.headerSide}>{back && <IconButton name="back" label="Go back" onPress={onBack || (() => router.canGoBack() ? router.back() : router.replace('/'))} />}</View>
         {back ? <Text numberOfLines={2} style={[s.heading, { flex: 1, textAlign: 'center', paddingHorizontal: 4 }]}>{title}</Text> : <Brand title={title} />}<View style={s.headerSide}>{action}</View>
       </View>
       <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>

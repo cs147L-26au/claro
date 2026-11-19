@@ -16,13 +16,25 @@ Scan the QR code using an SDK 58-compatible Expo Go app. For a browser preview, 
 ## What works
 
 - **Home:** upcoming decision reviews, due-item count, task shortcuts, and decision-set navigation. Starts with an honest empty state; no seeded records.
-- **Tasks:** decisions to make, with a name, description, optional deadline, and universal or custom priorities. Follow-up to-dos are a separate teammate-owned flow.
-- **Setting Priorities:** account-wide and per-task weights; shared sliders rebalance to exactly 100 points; add, rename, describe, or remove factors (2–8); reset to recommended, save/discard, or revert a task to universal. Ranked candidate choices include a recommendation, reason, and main trade-off.
-- **AI priorities:** describe your business, request suggested weights and explanations, review, apply to the draft, then explicitly save. Closing the assistant discards its pending response. Failures never silently replace your choices with invented AI output.
-- **Decisions:** create, search, filter, view, edit, archive/restore, and set review dates. Each decision preserves its original priority snapshot.
+- **Tasks:** describe the decision, review task-specific priorities on one page, then continue to a researched recommendation. Accepted plans stay linked to their original tasks so the recommendation, contacts, specifications, and daily actions can be reopened.
+- **Setting Priorities:** account-wide and per-task weights; shared sliders rebalance to exactly 100 points; add, rename, describe, or remove factors (2–8); reset to recommended; saved-task edits save automatically, while universal edits use an explicit save.
+- **AI priorities:** new tasks receive 3–6 criteria tailored to their decision, with a summary and reasons. The separate **Priorities → Help me set priorities** assistant still suggests weights for the existing business-wide factors. Both flows require a configured model-provider key; failures never silently replace your choices with invented AI output.
+- **Decisions:** a clear recommended supplier or option, an official learn-more link, sourced contact information, and a practical daily action plan. Missing essential details prompt short clarification questions. Accepting a plan saves a decision with its priority snapshot and adds its actions to Calendar. Manual decision creation, search, filtering, editing, archiving, and review dates remain available.
+- **Calendar:** dated action items with the details, contacts, and links needed to complete them. **Add plan to calendar** opens the calendar with a confirmation banner; actions can be completed or reopened there.
 - **Comparison:** score two options against saved priorities, see weighted scores, then carry your chosen option and reasoning into the decision form. This is a manual scoring tool, not an LLM recommendation.
 
-Supabase is the source of truth for tasks (including completion and due dates), saved decisions (including review dates and original priority snapshots), options, and universal/task priorities. Only the Auth session and an optional legacy-import marker remain in local storage; unsaved form drafts are temporary. New tasks and any custom priorities are saved atomically before opening their priorities and suggested-choices screen. Account data refreshes on navigation, app foreground/browser focus, priority saves, and explicit refresh. Writes require a connection and report failures; there is no silent offline save. Review dates appear in Home; push notifications are not scheduled.
+Supabase is the source of truth for tasks, decisions and their original priority snapshots, saved recommendation plans, calendar actions, options, and universal/task priorities. Only the Auth session and an optional legacy-import marker remain in local storage; unsaved form drafts are temporary. The initial priority request does not create a task. **Continue to decision** saves the new task and its reviewed custom priorities together before opening the recommendation page. A ready recommendation saves as a draft; calendar actions are created only when the user accepts it. Account data refreshes on navigation, app foreground/browser focus, saves, and explicit refresh. Writes require a connection and report failures. Review dates appear in Home; push notifications are not scheduled.
+
+## Add a task: details → priorities → decision → calendar
+
+1. Open **Tasks → Add task**. Enter a decision name (1–120 characters), a description of the goals, choices, or constraints (15–2,000 characters), and an optional real date in `YYYY-MM-DD` format.
+2. Tap **Help me make a decision**. The app sends those details to `POST /api/decision-priorities` on the local AI server. A loading state prevents duplicate submissions; **Cancel** stops waiting without saving a task. Errors keep the entered details available to retry.
+3. **Set priorities** shows the suggested balance and sliders, with each rationale available through its own **Why?** button. Customer-facing copy uses Claro's voice ("Our suggested balance" and "Our suggestion"). The summary and duplicate chart legend are hidden. Move the sliders to set your own balance; the total remains exactly 100%. **Reset to recommended** restores the proposed weights. **Edit details** opens the entered details: **Back** cancels those edits and restores the existing priorities; **Save** requests a fresh suggestion and returns to priorities on success. The original details and balance remain available if that request fails or is canceled. The Why? links align along the bottom of each row. **Add factors** inside the white slider card opens a compact name/percentage list. Add a custom factor or choose **Add from universal priorities**; each **Add** immediately copies that factor into this task and rebalances the other shares. Duplicate IDs/names are blocked, 2–8 factors are supported, and the universal set is unchanged.
+4. Tap **Continue to decision**. The task and reviewed factors save together in Supabase, then `/task/<id>/decision` requests a recommendation when no matching saved plan exists. Back returns to the prior priorities page. Continuing again updates the existing task instead of creating another. Opening the decision page directly shows a **Get my recommendation** action when generation is needed.
+5. Review the specific choice, official **Learn more** link, contact information, and expandable specifications/rationale. Each day lists practical actions with relevant details and links. The plan chooses the shortest realistic duration from **1–30 days**, rather than always assuming seven, and must fit the task deadline. If location, requirements, or other essential details are missing, answer the short clarification questions before requesting the recommendation again.
+6. Tap **Add plan to calendar** when satisfied. One Supabase transaction creates the decision and every dated action, then marks the saved plan accepted. The calendar opens on the start date with a “task has been added” banner. Repeated taps or a retry return the same receipt without duplicating actions. The original task stays in Tasks; reopening it shows the accepted recommendation, specifications, contacts, and schedule.
+
+The recommendation request uses two model calls: OpenAI web research followed by structured plan formatting. Calls begin only after an explicit **Continue to decision**, **Get my recommendation**, clarification submission, or retry. Reopening a matching saved plan, adjusting its start date, retrying its Supabase save, and accepting it do not call the model. The database rejects acceptance if the task details or effective priorities changed, or if the selected start date would push the schedule past its deadline.
 
 ## Supabase setup: login, tasks, decisions, and priorities
 
@@ -44,13 +56,15 @@ Supabase is the source of truth for tasks (including completion and due dates), 
    npx supabase db push
    ```
 
-   The first migration creates priority tables and minimal task/option contracts, enables RLS, installs atomic priority saves, and seeds 30 Cost / 30 Quality / 10 Delivery / 20 Reliability / 10 Sustainability for new users and existing accounts with no priorities. The second adds task notes/dates/completion, the complete decisions table, snapshot validation, and an atomic account-bound save/import RPC. The third (`202611190001_task_priority_defaults.sql`) copies universal priorities on every task insert and adds atomic task creation with optional overrides. Existing projects with the first two migrations need only the third. All tables enforce account/owned-task isolation. All three migrations were applied successfully through SQL Editor to project `hexdjlxqcrodaugntwlw`. The live API recognizes the tables, and the signed-in web app loads the seeded universal priorities. Do not rerun the one-time setup on this project. The public app key cannot apply SQL migrations. SQL Editor setup does not record CLI migration history: if switching to CLI deployment afterward, use `supabase migration repair --status applied 202611180001 202611180002 202611190001` after linking the project.
+   The first migration creates priority tables and minimal task/option contracts, enables RLS, installs atomic priority saves, and seeds default universal priorities. The second adds task notes/dates/completion, decisions, snapshot validation, and an account-bound save/import RPC. The third (`202611190001_task_priority_defaults.sql`) adds task priority defaults and atomic task creation. The fourth (`202611190002_post_decision_tasks.sql`) adds dated calendar actions. Those first four migrations were previously applied through SQL Editor to project `hexdjlxqcrodaugntwlw`.
+
+   **Decision-plan migration applied:** the project member confirmed running `supabase/migrations/202611200001_task_decision_plans.sql` in the configured project. A subsequent read-only, zero-row API request recognized the plan table and returned the expected anonymous-access denial (`42501`). This migration adds `task_decision_plans`, draft persistence, and atomic plan acceptance; do not rerun it or the combined one-time setup on this project. It requires all four earlier migrations. Signed-in plan generation and acceptance remain untested. The public app key cannot apply SQL. SQL Editor setup does not record CLI migration history: if switching to CLI deployment, repair only migrations confirmed as already applied before using `db push`.
 
 3. Enable email/password Auth in Supabase and restart Expo. **The app opens at login before any tab, task, or decision can be accessed**, including through a deep link. Sign in or create an account, and confirm email if required. Session restoration persists across launches. Home’s Account icon opens refresh, sign-out, and optional import. Signing out removes protected route history and account state. No anonymous account or local-data fallback is created.
 
 **Account data and existing records.** The repo originally stored tasks and decisions under `@claro/data/v1`. After signing in, **Home → Account → Import into this account** can copy those older tasks and decisions to Supabase. It previews counts, preserves existing cloud records and decision snapshots, leaves the original device copy untouched, and records a local completion marker. It does not overwrite universal priorities or silently attach device data to whichever user happens to sign in first. All new saves use Supabase directly.
 
-**Contracts and scope.** Tables use text task/decision/option IDs to support the existing `uid()` format and UUID strings. `tasks` now contains `id, user_id, title, notes, due_date, done`; `decisions` stores the complete existing decision model, using snake_case database dates/timestamps. `options(id, task_id, name, ratings jsonb)` remains the candidate-generation team's contract. The existing task creation/edit/completion and decision save/edit/archive screens now call the account-backed store. LLM option generation and automatic decision confirmation are not added. The app's manual comparison reads cloud universal priorities and stores its result through the cloud decision form.
+**Contracts and scope.** Tables use text task/decision/option IDs to support the existing `uid()` format and UUID strings. `tasks` contains `id, user_id, title, notes, due_date, done`; `decisions` stores the decision model with snake_case dates/timestamps. `task_decision_plans` stores the input snapshot, exact priorities, complete recommendation, and acceptance receipt for an originating task. Owner-only reads and RPC-only writes protect this record; accepted plans cannot be overwritten with a new draft. `options(id, task_id, name, ratings jsonb)` remains available for independently supplied candidates and manual scoring. The researched decision flow does not need prepopulated options. The manual comparison still reads cloud universal priorities and saves through the decision form.
 
 `factor` is the stable factor ID (`cost`, `quality`, etc.), not its editable name. Priority tables also store `name`, `description`, `color`, and order to preserve edits across devices. Task priority rows include `excluded` for removed factors and `inherited` for the starting copy of universal factors. A database trigger stores that copy on every new task, including plain inserts from teammate code. Inherited rows are not overrides: the effective set still follows current universal values. Saving custom priorities replaces the copy with explicit overrides. Reverting removes overrides and resumes universal inheritance; an empty set also means universal. Task custom saves store the displayed set with explicit exclusions, so its weights win for those factors; new universal factors fall back and the merged set is renormalized to 100. The shared store loads universal factors from Supabase for the existing manual comparison and new decision snapshots. Task recommendation consumers should call `getEffectivePriorities(taskId)` to include task-specific overrides.
 
@@ -72,27 +86,24 @@ const choices = await rankOptions(taskId);
 invalidatePriorities();
 ```
 
-Use `<TaskPrioritiesEntry taskId={task.id} />` from `src/components/TaskPrioritiesEntry` on a task detail screen, or navigate to `/task/<id>/priorities`. The entry is already added to the existing task edit/detail screen. The add-task form also has a priorities sheet using the same compact editor. It starts from a copy of the universal weights and can save custom factors with the new task. New tasks open their priorities/choices page immediately after the cloud save. The task page displays the saved universal/custom mode and an **Update ranking** action. Saves invalidate all mounted priority/ranking hooks; returning to a screen also refreshes them. External changes on another device are read on refocus or explicit refresh (no Realtime publication is assumed).
+Use `<TaskPrioritiesEntry taskId={task.id} />` from `src/components/TaskPrioritiesEntry` on a task detail screen, or navigate to `/task/<id>/priorities`. New and saved tasks use the same `TaskPriorityCard`, factor picker, and 0–100 scale. **Continue to decision** opens the recommendation page without a second priority editor. Saved task sliders and factor-list edits save automatically after a short pause. Reset restores the task balance loaded when the editor opened. Back waits for pending saves; failed writes stay visible with a retry action. Saves invalidate mounted priority hooks; returning to a screen also refreshes them. External changes are read on refocus or explicit refresh (no Realtime publication is assumed).
 
-**Task-creation integration.** A task represents the decision to make; `title` is its name and `notes` is its description. Use the exported API before starting the teammate-owned LLM job:
+**Task-creation integration.** A task represents the decision to make; `title` is its name and `notes` is its description. The new-task UI passes the reviewed factors to the atomic-save API. Other callers can omit custom factors to inherit universal priorities:
 
 ```ts
-import { createTaskWithPriorities, getEffectivePriorities, rankOptions, invalidatePriorities } from './src/lib/priorities';
+import { createTaskWithPriorities, getEffectivePriorities } from './src/lib/priorities';
 
 // Omit customFactors to follow universal; provide a complete 100-point set to customize.
 const taskId = await createTaskWithPriorities(taskDraft, customFactors, session.user.id);
 const factors = await getEffectivePriorities(taskId);
-// Now your generator can use taskDraft.title, taskDraft.notes and factors,
-// then insert candidates into options with this task_id and ratings keyed by factor ID.
-invalidatePriorities(); // Call AFTER those candidate inserts finish.
-const suggested = await rankOptions(taskId); // Up to 3; first is Recommended.
+// The decision page uses the saved details and factors for its explicit request.
 ```
 
-The generator and choice confirmation remain teammate-owned. They are not automatically invoked by the priorities feature. The confirmation flow should use the selected option and `getEffectivePriorities(taskId)` for its decision snapshot, and retain the originating task ID in its own contract.
+`generateTaskDecisionPlan` in `src/lib/ai.ts` calls the research/plan endpoint. `saveDecisionPlan` and `acceptDecisionPlan` in `src/lib/decision-plans.ts` persist the draft and accept it through account-bound Supabase RPCs. The saved input key allows reopening an unchanged plan without repeating research. Acceptance uses the saved priority snapshot, keeps the originating task linked, and never replaces its description with the plan JSON.
 
 **Calendar and post-decision tasks.** `/calendar` replaces the Decision tab; saved decision history remains at `/decisions`, accessible from Home. Ordinary `tasks` are decisions to make. Follow-ups live separately in `post_decision_tasks`, linked to a saved `decisions` row. Apply `supabase/migrations/202611190002_post_decision_tasks.sql` once to existing projects with the first three migrations; do not rerun the combined setup. This fourth migration was also applied successfully through SQL Editor to the configured project; include `202611190002` when repairing CLI history. The new table has RLS and a composite foreign key to enforce same-account decision ownership. Calendar supports month/day selection, dated follow-up creation, and completion/reopening. Home shows pending follow-ups and opens their calendar date.
 
-After saving the confirmed decision, teammates can call `createPostDecisionTasks(savedDecisionId, [{ title: 'Contact the supplier', dueDate: '2026-12-01', notes: 'Confirm the delivery window' }], session.user.id)` from `src/lib/followups.ts`. This inserts a batch atomically and refreshes Home/Calendar. `usePostDecisionTasks(startDate?, endDate?)` supplies account-scoped reads, refresh, create, and completion updates. LLM next-step generation and automatic invocation from confirmation are still integration work; the Calendar also supports manual follow-ups.
+The decision flow's acceptance RPC writes the decision and all `post_decision_tasks` together. Action dates use the selected local start date plus the plan's day offset. Every action keeps its full details and resource information; oversized action notes are rejected rather than truncated. The plan retains the complete recommendation, specifications, assumptions, and sources. Home and Calendar refresh after acceptance. `usePostDecisionTasks(startDate?, endDate?)` supplies account-scoped reads and completion updates. Manual follow-up creation is still supported through Calendar and `createPostDecisionTasks` in `src/lib/followups.ts`.
 
 Priority editors show a larger centered donut with “Universal” or the decision name in its center, above the vertical sliders. Saved previews keep two columns, short horizontal segment labels, percentages, and the decision name in the middle.
 
@@ -106,12 +117,14 @@ Priority editors show a larger centered donut with “Universal” or the decisi
 
 References: [Supabase React Native Auth](https://supabase.com/docs/guides/auth/quickstarts/react-native), [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security).
 
-## Connect the free LLM API
+## Connect the LLM API
 
-**Provider: Groq, model: `openai/gpt-oss-20b`.** Groq currently offers a rate-limited free plan. Stay on that plan for this prototype; availability and quotas are controlled by Groq. GitHub Models was retired on July 30, 2026, so this app does not use the old GitHub inference endpoint.
+**Provider selection:** task-specific and universal priority suggestions use OpenAI with `OPENAI_MODEL=gpt-4.1-mini` when `OPENAI_API_KEY` is set. Otherwise those priority routes use `GROQ_API_KEY` with `GROQ_MODEL=openai/gpt-oss-20b`. When both keys are present, OpenAI wins; provider errors do not trigger a silent fallback. The researched decision-plan route requires OpenAI. It first uses `OPENAI_RESEARCH_MODEL=gpt-4.1-mini` with the Responses API's web-search tool, then `OPENAI_MODEL` to format and validate the recommendation and schedule. These model settings are server-only.
 
-1. Create your own key at [Groq Console](https://console.groq.com/keys). Do not paste it into chat or commit it.
-2. Copy `.env.example` to `.env` and fill in `GROQ_API_KEY`.
+**Supabase and AI use separate keys.** The Supabase project URL and anon/publishable key connect the app to authentication and stored data; they do not authorize model requests. Provider keys stay on the Node server. Supabase [Edge Functions can call a model provider](https://supabase.com/docs/guides/ai/examples/openai) with a server-side provider key, but this repo has not deployed an Edge Function for this flow. The connection is **Expo app → local Node API → model provider**, with tasks, priorities, recommendation drafts, and accepted plans persisted separately in Supabase.
+
+1. Use your own OpenAI API key for the complete decision flow. A [Groq Console](https://console.groq.com/keys) key supports the priority-suggestion routes only. Keep provider keys in the ignored local environment file and out of source control.
+2. Add `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-4.1-mini`, and `OPENAI_RESEARCH_MODEL=gpt-4.1-mini` to your existing `.env`, using `.env.example` as a guide. If starting fresh, copy the example first. Preserve your Supabase configuration. The OpenAI project needs access to the chosen models and web search, with available usage quota. Apply the decision-plan migration before using saved recommendations and acceptance.
 3. Run the server in one terminal:
 
    ```sh
@@ -119,9 +132,16 @@ References: [Supabase React Native Auth](https://supabase.com/docs/guides/auth/q
    ```
 
 4. In another terminal, run `npm start` (phone) or `npm run web` (browser).
-5. Open **Priorities → Help me set priorities**, describe the business, and request a suggestion. Review **Use this suggestion**, then **Update priorities**.
+5. Open **Tasks → Add task**, enter the decision details, and tap **Help me make a decision**. Review the priorities, then tap **Continue to decision** to request the recommendation. Review the choice and schedule, then **Add plan to calendar** to accept it.
+6. For business-wide suggestions, the existing **Priorities → Help me set priorities** assistant remains available: describe the business, request a suggestion, review **Use this suggestion**, then **Update priorities**.
 
-The key exists only in the Node server. Never name it `EXPO_PUBLIC_GROQ_API_KEY` or place it in app source. `EXPO_PUBLIC_API_URL` is just the public server address. Only the text entered into the assistant and current factors are sent to Groq; stored decisions and tasks are not sent. Provider responses are checked for matching factor IDs, valid weights, reasons, and a total of exactly 100 before the app displays them.
+Provider keys exist only in the Node server. Never prefix a provider key or research-model setting with `EXPO_PUBLIC_`, or place credentials in app source. `EXPO_PUBLIC_API_URL` is just the public server address. The initial priority request sends the decision name, description, and optional deadline. Decision research additionally sends the selected factors and weights, start date, and any clarification answers. The universal-priorities assistant sends its entered business context and current factors. These routes do not send the account's task or decision history.
+
+`POST /api/decision-priorities` accepts `{ title, description, dueDate }` (`dueDate` is an empty string when omitted in the form) and returns `{ summary, factors: [{ id, name, description, weight, reason }] }`. The server and client validate 3–6 unique criteria, bounded text, integer weights, and a total of exactly 100 before displaying them. Colors come from the app palette. The existing `POST /api/priorities` route continues to validate matching supplied factor IDs. AI summaries and reasons stay in the unsaved review state; the confirmed task and factor names, descriptions, colors, and weights are persisted through the existing Supabase contract.
+
+`POST /api/decision-plan` accepts `{ title, description, dueDate, startDate, factors, context }`. It performs one web-research call and one structured-formatting call, returning either a ready recommendation with a 1–30-day schedule or up to three clarification questions. Links must come from retrieved sources; email and phone contacts must appear in the research or user-supplied details. The shared parser validates every plan field, source relationship, consecutive day, and action-note size. It rejects an incomplete or unsupported result rather than replacing it with a sample supplier. Customer-facing text uses Claro's voice, including “Our recommendation.”
+
+Provider responses in existing automated tests are mocked. A real priority-suggestion request was verified during earlier work; this does not validate the new researched decision flow. **No tests, builds, typechecks, or live model requests were run for this decision-page change.** `GET /health` reports the selected priority provider/model and whether a key is configured; it does not validate the key, research access, or reveal credentials.
 
 ### On a physical phone
 
@@ -138,12 +158,12 @@ The API defaults to loopback, accepts only configured browser origins, limits re
 
 ### API troubleshooting
 
-- `GET /health` reports server availability and whether a key is configured, without returning the key.
-- A missing key produces a setup message; manual functionality still works.
-- 401/403 from Groq: check the key and model permissions.
-- 429: free quota/rate limit; wait and retry or edit manually.
+- `GET /health` reports server availability, active provider/model, and whether a key is configured, without returning the key.
+- A missing key produces a setup message and leaves the new-task details unsaved for retry. Existing task editing and manual priority controls remain available.
+- 401/403 from the provider: check the selected provider's key and model permissions.
+- 429: provider quota or rate limit; wait and retry. No substitute AI output is generated.
 - A connection error on a phone: check its API URL, Wi-Fi, and your local firewall.
-- 30-second provider timeout and 35-second app timeout prevent a stuck spinner.
+- Priority suggestions have a 30-second provider timeout and 35-second app timeout. Decision research has a 65-second limit, the combined server request is bounded at 100 seconds, and the app stops waiting after 120 seconds. Cancellation preserves the task details.
 
 ## Checks
 
@@ -154,28 +174,34 @@ npx expo install --check
 npm run build
 ```
 
-`npm test` covers exact priority allocation, zero-weight edge cases, date validation, saved-data validation/round trips, priority snapshots, request/response validation, provider failures, and the HTTP endpoint. Provider calls in tests are mocked; an actual Groq request requires your key. `npm run build` exports iOS, Android, and web JavaScript bundles; it is not a native device build.
+The existing tests cover priority allocation, zero-weight edge cases, date validation, saved-data round trips, priority snapshots, the two priority-suggestion request/response contracts, provider selection/failures, and their HTTP endpoints. Their OpenAI and Groq calls are mocked. The new researched decision flow has not been tested in this change. `npm run build` exports iOS, Android, and web JavaScript bundles; it is not a native device build.
 
-Manual walkthrough: save a decision with a review date → reopen it → edit it → archive and restore it → change and save priorities → restart the app → check that the decision's original priorities remain unchanged. Then create/complete a task, edit factors, and try the AI assistant with and without a configured key.
+Manual walkthrough, when model usage is authorized: **Tasks → Add task → details → Help me make a decision → Why? → adjust sliders → Continue to decision → review choice/contact/specifications/daily actions → Add plan to calendar → confirmation banner → Tasks → reopen the saved plan**. Also check clarification questions, cancellation, retry, a changed deadline, editing details before acceptance, and duplicate acceptance. Reopening an unchanged plan and accepting it should not repeat model requests. This new-flow walkthrough remains unrun.
 
 ## Code map
 
 ```text
-src/app/(tabs)/       Home, Tasks, Priorities, Decisions
+src/app/(tabs)/       Home, Tasks, Priorities, Calendar
 src/app/decision/     Save, edit, detail, and compare flows
-src/app/task/         Add/edit task flow
+src/app/task/         Add/edit task flow, priorities, researched decision page
 src/components/      Shared interface and priority ring
+src/components/NewTaskForm.tsx Decision details, AI review, and confirmed task creation
 src/lib/model.ts     Types, exact allocation, validation
 src/lib/store.tsx    Account-scoped Supabase store and refresh lifecycle
 src/lib/account-data.ts Typed task/decision reads and atomic writes
 src/lib/account-controller.ts Serialized reads/writes and account invalidation
 src/lib/ai.ts        Client for the local AI proxy
+src/lib/decision-ai.ts Decision-analysis request/response validation and cancellable requests
+src/lib/decision-plan.ts Shared recommendation/schedule contract and validation
+src/lib/decision-plan-client.ts Cancellable decision-plan request
+src/lib/decision-plan-service.ts Supabase draft persistence and atomic acceptance
+src/lib/decision-plans.ts Account-scoped plan hooks and cache invalidation
 src/lib/priorities/  Pure merge/scoring, typed Supabase service, hooks
 src/lib/supabase.ts  Environment-based typed client
 src/lib/auth.tsx     Shared Supabase Auth session
 supabase/migrations/ Priorities and account data schema, RLS, seed, atomic RPCs
 supabase/setup.sql  Combined one-time SQL Editor setup
-server/              Groq proxy (no third-party server dependencies)
+server/              Priority suggestions, OpenAI web research, structured decision plans
 tests/               Domain and API tests
 ```
 
@@ -185,6 +211,7 @@ tests/               Domain and API tests
 - [GitHub Models retirement](https://github.blog/changelog/2026-07-01-github-models-is-being-fully-retired-on-july-30-2026/)
 - [Groq free-plan rate limits](https://console.groq.com/docs/rate-limits)
 - [Groq structured outputs](https://console.groq.com/docs/structured-outputs)
+- [Supabase Edge Functions with a model provider](https://supabase.com/docs/guides/ai/examples/openai)
 
 ---
 

@@ -6,10 +6,10 @@ import { createFollowUpService, type FollowUpInput } from './followups-service';
 import type { PostDecisionTaskRow } from './priorities/database.types';
 
 const listeners = new Set<() => void>();
-const changed = () => listeners.forEach(listener => listener());
+export const invalidateFollowUps = () => listeners.forEach(listener => listener());
 export async function createPostDecisionTasks(decisionId: string, steps: FollowUpInput[], expectedUserId?: string) {
   const rows = await createFollowUpService(requireSupabase()).create(decisionId, steps, expectedUserId);
-  changed(); return rows;
+  invalidateFollowUps(); return rows;
 }
 export function usePostDecisionTasks(start?: string, end?: string) {
   const { session } = useAuth();
@@ -34,7 +34,7 @@ export function usePostDecisionTasks(start?: string, end?: string) {
   return { ...(state.scope === scope ? state : { data: [], loading: Boolean(userId), error: '' }), refresh,
     create: (decisionId: string, steps: FollowUpInput[]) => createPostDecisionTasks(decisionId, steps, userId),
     setDone: async (id: string, done: boolean) => {
-      await createFollowUpService(requireSupabase()).setDone(id, done, userId); changed();
+      await createFollowUpService(requireSupabase()).setDone(id, done, userId); invalidateFollowUps();
     },
   };
 }
