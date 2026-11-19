@@ -30,7 +30,7 @@ export default function Compare() {
     </Card>)}
     {error ? <Notice error>{error}</Notice> : null}<Button label="Compare my options" onPress={compare} />
     {show && <><Card soft><Heading>{result[0] === result[1] ? 'A close call — both options tie.' : `${result[0] > result[1] ? a : b} fits your ratings best.`}</Heading>
-      <Body>{a}: {result[0].toFixed(1)}/100{ '\n' }{b}: {result[1].toFixed(1)}/100</Body><Body>These scores come from your ratings and saved weights. They are a reflection tool, not an AI recommendation. The choice is yours.</Body></Card>
+      <Body>{a}: {result[0].toFixed(1)}/100{ '\n' }{b}: {result[1].toFixed(1)}/100</Body><Body>Based on your ratings and priorities.</Body></Card>
       {[a, b].map((option, i) => <Button key={i} secondary={result[i] < result[1-i]} label={`Choose ${option}`} onPress={() => router.push({ pathname: '/decision/new', params: {
         title, choice: option, alternatives: [a, b][1-i],
         notes: `I compared ${a} (${result[0].toFixed(1)}/100) with ${b} (${result[1].toFixed(1)}/100) using my own ratings.\n\n${factors.map(f => `${f.name} (${f.weight}%): ${a} ${scores[f.id][0]}/5; ${b} ${scores[f.id][1]}/5.`).join('\n')}`,

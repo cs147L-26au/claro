@@ -12,8 +12,8 @@ function shortFactorName(name: string) {
   return shortFactorNames[trimmed.toLowerCase()] ?? (trimmed.length > 7 ? `${trimmed.slice(0, 6)}…` : trimmed);
 }
 
-export function PriorityChart({ factors, compact = false, chartOnly = false, centerLabel, segmentLabels = false, large = false }: {
-  factors: Factor[]; compact?: boolean; chartOnly?: boolean; centerLabel?: string; segmentLabels?: boolean; large?: boolean;
+export function PriorityChart({ factors, compact = false, chartOnly = false, centerLabel, segmentLabels = false, large = false, showLegend = true }: {
+  factors: Factor[]; compact?: boolean; chartOnly?: boolean; centerLabel?: string; segmentLabels?: boolean; large?: boolean; showLegend?: boolean;
 }) {
   let offset = 0;
   const size = large ? 240 : compact ? 128 : 218;
@@ -46,6 +46,6 @@ export function PriorityChart({ factors, compact = false, chartOnly = false, cen
           style={[s.label, { fontSize: large ? 23 : 18, lineHeight: large ? 28 : 22, textAlign: 'center' }]}>{centerLabel}</Text>
       </View> : null}
     </View>
-    {!chartOnly && <View style={compact ? { flex: 1, gap: 4 } : [s.wrap, { justifyContent: 'center', columnGap: 16 }]}>{factors.map(f => <View key={f.id} style={[s.row, { gap: 5 }]}><View style={{ width: 8, height: 8, backgroundColor: f.color, borderRadius: 4 }} /><Text style={[s.small, compact && { flex: 1 }]}>{f.name} {f.weight}%</Text></View>)}</View>}
+    {!chartOnly && showLegend && <View style={compact ? { flex: 1, gap: 4 } : [s.wrap, { justifyContent: 'center', columnGap: 16 }]}>{factors.map(f => <View key={f.id} style={[s.row, { gap: 5 }]}><View style={{ width: 8, height: 8, backgroundColor: f.color, borderRadius: 4 }} /><Text style={[s.small, compact && { flex: 1 }]}>{f.name} {f.weight}%</Text></View>)}</View>}
   </View>;
 }

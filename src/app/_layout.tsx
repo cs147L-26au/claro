@@ -16,6 +16,7 @@ function AppNavigation() {
       <Stack.Screen name="saved-priorities" />
       <Stack.Screen name="task/[id]" />
       <Stack.Screen name="task/[id]/priorities" />
+      <Stack.Screen name="task/[id]/decision" />
       <Stack.Screen name="decision/[id]" />
       <Stack.Screen name="decision/new" />
       <Stack.Screen name="decision/edit" />
