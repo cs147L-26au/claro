@@ -14,6 +14,7 @@ function AppNavigation() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="account" />
       <Stack.Screen name="saved-priorities" />
+      <Stack.Screen name="decisions-made" />
       <Stack.Screen name="task/[id]" />
       <Stack.Screen name="task/[id]/priorities" />
       <Stack.Screen name="task/[id]/decision" />

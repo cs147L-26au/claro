@@ -5,28 +5,34 @@ import { Body, Button, Card, Chip, Empty, Heading, Icon, Notice, Page, s, theme 
 import { useStore } from '../../lib/store';
 import { useAcceptedTaskPlans } from '../../lib/decision-plans';
 import { dateLabel } from '../../lib/model';
+import { decisionsByDate, decisionSummary } from '../../lib/decision-history';
 export default function Tasks() {
   const { data, save } = useStore();
   const plans = useAcceptedTaskPlans();
   const plannedTasks = new Set(plans.data.map(plan => plan.taskId));
   const [filter, setFilter] = useState('Open'); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const tasks = data.tasks.filter(t => filter === 'All' || t.done === (filter === 'Done')).sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
-  const decisions = data.decisions.filter(d => d.status === 'active');
+  const decisions = decisionsByDate(data.decisions);
   function openTask(id: string) {
     if (plannedTasks.has(id)) router.push({ pathname: '/task/[id]/decision', params: { id } });
     else router.push({ pathname: '/task/[id]', params: { id } });
   }
-  function openDecision(id: string) {
-    const plan = plans.data.find(item => item.decisionId === id);
-    if (plan) router.push({ pathname: '/task/[id]/decision', params: { id: plan.taskId } });
-    else router.push({ pathname: '/decision/[id]', params: { id } });
-  }
   async function toggle(id: string) { setBusy(true); setError(''); try { await save(d => ({ ...d, tasks: d.tasks.map(t => t.id === id ? { ...t, done: !t.done } : t) })); } catch { setError('Could not save that change. Try again.'); } finally { setBusy(false); } }
   return <Page title="Tasks"><View style={{ gap: 6 }}><Heading>Decisions to make.</Heading><Body>Each task is a decision. Set your priorities and compare your choices.</Body></View>
-    {decisions.length > 0 && <><View style={s.between}><Heading>Decisions made</Heading><Text style={s.small}>{decisions.length} saved</Text></View>
-      <Pressable accessibilityRole="button" onPress={() => openDecision(decisions[0].id)} style={{ backgroundColor: '#123F3A', borderRadius: 22, padding: 23, gap: 22 }}>
-        <View style={s.row}><Icon name="check" color="#D8E6B5" size={20} /><Text style={[s.label, { color: '#D8E6B5', flex: 1 }]}>{decisions[0].title}</Text></View>
-        <View style={s.between}><Text style={{ color: 'white', fontSize: 26, lineHeight: 34, flex: 1 }}>{decisions[0].choice}</Text><Icon name="arrow" color="#D8E6B5" /></View>
+    {decisions.length > 0 && <><Heading>Decisions made</Heading>
+      <Pressable accessibilityRole="button" accessibilityLabel={`View all ${decisions.length} decisions made`}
+        accessibilityHint="Opens your decision timeline, newest first"
+        onPress={() => router.push('/decisions-made')}
+        style={({ pressed }) => ({ backgroundColor: '#123F3A', borderRadius: 22, paddingHorizontal: 18, paddingVertical: 8, opacity: pressed ? 0.8 : 1 })}>
+        {decisions.slice(0, 3).map((decision, index) => <View key={decision.id} style={[s.row, {
+          minHeight: 48, paddingVertical: 12, borderTopWidth: index ? 1 : 0, borderTopColor: '#315751',
+        }]}>
+          <Icon name="check" color="#D8E6B5" size={17} />
+          <Text numberOfLines={1} style={[s.label, { color: theme.white, flex: 1 }]}>{decisionSummary(decision)}</Text>
+        </View>)}
+        <View style={[s.between, { minHeight: 44, borderTopWidth: 1, borderTopColor: '#315751' }]}>
+          <Text style={[s.label, { color: '#D8E6B5' }]}>View all · {decisions.length}</Text><Icon name="arrow" color="#D8E6B5" size={18} />
+        </View>
       </Pressable></>}
     <Button icon="plus" label="Add task" onPress={() => router.push('/task/new')} />
     <View style={s.wrap}>{['Open', 'Done', 'All'].map(f => <Chip key={f} label={f} selected={filter === f} onPress={() => setFilter(f)} />)}</View>
