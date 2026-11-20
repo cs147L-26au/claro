@@ -28,7 +28,7 @@ export function validateDecisionResult(result) {
       new Set(factors.map(f => f.id)).size !== factors.length ||
       new Set(factors.map(f => f.name.trim().replace(/\s+/g, ' ').toLowerCase())).size !== factors.length ||
       factors.reduce((sum, f) => sum + f.weight, 0) !== 100) {
-    throw new ApiError(502, 'The AI returned incomplete priorities. Please try again; your decision has not been saved.');
+    throw new ApiError(502, 'Our priorities were incomplete. Please try again; your decision has not been saved.');
   }
   return {
     summary: result.summary.trim(),

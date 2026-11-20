@@ -13,7 +13,7 @@ export function validateDecisionBrief(brief: DecisionBrief): DecisionBrief {
 }
 
 export function parseDecisionSuggestion(value: unknown): DecisionSuggestion {
-  const invalid = () => new Error('The AI response was incomplete. Please try again; your decision has not been saved.');
+  const invalid = () => new Error('The response was incomplete. Please try again.');
   if (!value || typeof value !== 'object') throw invalid();
   const { summary, factors } = value as Record<string, unknown>;
   if (typeof summary !== 'string' || !summary.trim() || summary.length > 1200 ||
@@ -45,16 +45,16 @@ export async function requestDecisionPriorities(baseUrl: string, brief: Decision
     });
     let body: unknown;
     try { body = await response.json(); }
-    catch { throw new Error('The AI service returned an unreadable response. Please try again.'); }
+    catch { throw new Error('The response was unreadable. Please try again.'); }
     if (!response.ok) {
       const message = (body as { error?: unknown } | null)?.error;
-      throw new Error(typeof message === 'string' && message.length <= 1000 ? message : 'AI is unavailable right now. Please try again.');
+      throw new Error(typeof message === 'string' && message.length <= 1000 ? message : 'Recommendations are unavailable. Please try again.');
     }
     return parseDecisionSuggestion(body);
   } catch (error) {
-    if (signal?.aborted) throw new Error('Analysis canceled. Your details are still here.');
-    if (controller.signal.aborted) throw new Error('AI took too long to respond. Please try again.');
-    if (error instanceof TypeError) throw new Error('Cannot reach the AI service right now. Your details are still here; please try again shortly.');
+    if (signal?.aborted) throw new Error('Request canceled. Your details are still here.');
+    if (controller.signal.aborted) throw new Error('The request took too long. Please try again.');
+    if (error instanceof TypeError) throw new Error('Cannot reach Claro. Check your connection and try again.');
     throw error;
   } finally {
     clearTimeout(timeout);

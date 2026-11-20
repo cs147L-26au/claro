@@ -8,10 +8,10 @@ Use **Node 22.23.3** (`nvm use`), then:
 
 ```sh
 npm ci
-npm start
+npm run dev
 ```
 
-Scan the QR code using an SDK 58-compatible Expo Go app. For a browser preview, run `npm run web`. Sign in once to access the app. Tasks, saved decisions, and priorities use your Supabase account and the configuration below.
+`npm run dev` starts both the recommendation API and Expo Go on matching LAN addresses. Keep the phone and computer on the same Wi-Fi, then scan the QR code using an SDK 58-compatible Expo Go app. Press `w` in that terminal for the browser preview. Stop previous API/Expo terminals first if their ports are already occupied. `npm start` and `npm run web` still start only Expo; they require `npm run api` in a separate terminal. Sign in once to access the app. Tasks, saved decisions, and priorities use your Supabase account and the configuration below.
 
 ## What works
 
@@ -140,20 +140,24 @@ Provider keys exist only in the Node server. Never prefix a provider key or rese
 
 `POST /api/decision-priorities` accepts `{ title, description, dueDate }` (`dueDate` is an empty string when omitted in the form) and returns `{ summary, factors: [{ id, name, description, weight, reason }] }`. The server and client validate 3–6 unique criteria, bounded text, integer weights, and a total of exactly 100 before displaying them. Colors come from the app palette. The existing `POST /api/priorities` route continues to validate matching supplied factor IDs. AI summaries and reasons stay in the unsaved review state; the confirmed task and factor names, descriptions, colors, and weights are persisted through the existing Supabase contract.
 
-`POST /api/decision-plan` accepts `{ title, description, dueDate, startDate, factors, context }`. It performs one web-research call and one structured-formatting call, returning either a ready recommendation with a 1–30-day schedule or up to three clarification questions. Links must come from retrieved sources; email and phone contacts must appear in the research or user-supplied details. The shared parser validates every plan field, source relationship, consecutive day, and action-note size. It rejects an incomplete or unsupported result rather than replacing it with a sample supplier. Customer-facing text uses Claro's voice, including “Our recommendation.”
+`POST /api/decision-plan` accepts `{ title, description, dueDate, startDate, factors, context }`. It performs one web-research call and one structured-formatting call, returning either a ready recommendation with a 1–30-day schedule or up to three clarification questions. The formatter uses separate ready/clarification schemas with bounded fields and selects source IDs from the research. The server resolves those IDs to exact retrieved URLs and builds the unique source list. Email and phone contacts must appear in the research or user-supplied details. The shared parser validates every plan field, source relationship, consecutive day, and action-note size. It rejects an incomplete or unsupported result rather than replacing it with a sample supplier. Customer-facing text uses Claro's voice, including “Our recommendation.”
 
-Provider responses in existing automated tests are mocked. A real priority-suggestion request was verified during earlier work; this does not validate the new researched decision flow. **No tests, builds, typechecks, or live model requests were run for this decision-page change.** `GET /health` reports the selected priority provider/model and whether a key is configured; it does not validate the key, research access, or reveal credentials.
+Automated provider tests use mocked responses. In user-authorized live checks, task priorities returned four factors totaling 100% in 4.9 seconds and passed the app parser. One researched decision request was rejected for unverified contact information; a second returned a ready supplier recommendation, two sources, and a three-day schedule in 14.9 seconds. These checks did not save account data or accept calendar actions. URL-resolution and cancellation regressions pass, as does typechecking; physical-device generation and Supabase acceptance remain separate checks. `GET /health` reports the selected priority provider/model and whether a key is configured; it does not validate the key, research access, or reveal credentials.
 
 ### On a physical phone
 
-`localhost` on a phone means the phone, not your laptop. On trusted Wi-Fi:
+Use `npm run dev` to detect the computer's LAN address and start both servers together. It sets the app's public API address and the allowed browser origin for this session. Restart the command after changing networks. If several network interfaces are available, `CLARO_DEV_HOST=your_computer_ipv4 npm run dev` selects the address explicitly.
+
+For separate API and Expo terminals on trusted Wi-Fi:
 
 ```dotenv
 API_HOST=0.0.0.0
-EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:8787
+EXPO_PUBLIC_API_URL=http://localhost:8787
 ```
 
-Restart both the API and Expo after changing `.env`. Keep the phone and laptop on the same Wi-Fi. For Android Emulator use `http://10.0.2.2:8787`; for iOS Simulator use `http://localhost:8787`. An Expo tunnel only tunnels Metro, not this separate API service.
+In development, a loopback or private API address follows the current local browser hostname or Expo LAN host, preserving the API port and path. This prevents an old Wi-Fi address from remaining in use after the computer changes networks. Explicit remote URLs and production builds are unchanged. `localhost` still means the phone itself outside this development resolution; an Expo tunnel cannot supply the separate API's address, so tunnel sessions need an explicitly reachable API URL.
+
+Restart the API after changing its host, and fully reload the app in Expo Go after changing its public API address. Keep the phone and laptop on the same Wi-Fi. Opening `http://YOUR_COMPUTER_LAN_IP:8787/health` in the phone's browser checks the connection without calling a model. Add the exact LAN browser origin to `ALLOWED_ORIGINS` when opening the web app through that address; `npm run dev` does this at startup.
 
 The API defaults to loopback, accepts only configured browser origins, limits request sizes and per-IP requests, and times out provider calls. **It is a local development server, not a publicly deployable authenticated service.** Before sharing a hosted build, put the API behind real authentication and HTTPS, set a production API URL, and configure exact allowed browser origins. The app will not guess a localhost API in a production build.
 
@@ -164,6 +168,7 @@ The API defaults to loopback, accepts only configured browser origins, limits re
 - 401/403 from the provider: check the selected provider's key and model permissions.
 - 429: provider quota or rate limit; wait and retry. No substitute AI output is generated.
 - A connection error on a phone: check its API URL, Wi-Fi, and your local firewall.
+- A response rejected as incomplete: the API terminal reports a safe field path, category, and validation code, without business details or model output. The app identifies whether contacts, links, the daily plan, or other recommendation details failed validation. No automatic extra model call is made.
 - Priority suggestions have a 30-second provider timeout and 35-second app timeout. Decision research has a 65-second limit, the combined server request is bounded at 100 seconds, and the app stops waiting after 120 seconds. Cancellation preserves the task details.
 
 ## Checks
@@ -175,7 +180,7 @@ npx expo install --check
 npm run build
 ```
 
-The existing tests cover priority allocation, zero-weight edge cases, date validation, saved-data round trips, priority snapshots, the two priority-suggestion request/response contracts, provider selection/failures, and their HTTP endpoints. Their OpenAI and Groq calls are mocked. The new researched decision flow has not been tested in this change. `npm run build` exports iOS, Android, and web JavaScript bundles; it is not a native device build.
+The existing tests cover priority allocation, zero-weight edge cases, date validation, saved-data round trips, priority snapshots, the two priority-suggestion request/response contracts, provider selection/failures, cancellation, development URL resolution, and HTTP endpoints. Their OpenAI and Groq calls are mocked. Live decision-response checks are described above; calendar acceptance has not been exercised in those checks. `npm run build` exports iOS, Android, and web JavaScript bundles; it is not a native device build.
 
 Manual walkthrough, when model usage is authorized: **Tasks → Add task → details → Help me make a decision → Why? → adjust sliders → Continue to decision → review choice/contact/specifications/daily actions → Add plan to calendar → confirmation banner → Tasks → reopen the saved plan**. Also check clarification questions, cancellation, retry, a changed deadline, editing details before acceptance, and duplicate acceptance. Reopening an unchanged plan and accepting it should not repeat model requests. This new-flow walkthrough remains unrun.
 

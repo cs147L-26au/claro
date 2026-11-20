@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aiStatus, resolveAiProvider } from '../server/ai-provider.mjs';
+import { aiStatus, generateStructuredResult, resolveAiProvider } from '../server/ai-provider.mjs';
 import { generatePriorities } from '../server/priorities.mjs';
 import { generateDecisionPriorities } from '../server/decision-priorities.mjs';
 import { createApi } from '../server/index.mjs';
@@ -19,6 +19,10 @@ const decisionResult = { summary: 'Prioritize dependable service and cost. Suppl
   { id: 'quality', name: 'Quality', description: 'Taste and consistency', weight: 35, reason: 'Customers expect consistent coffee.' },
   { id: 'reliability', name: 'Reliability', description: 'Dependable weekly delivery', weight: 25, reason: 'Stock must arrive weekly.' },
 ] };
+const structuredRequest = { schemaName: 'cancellation_check',
+  schema: { type: 'object', properties: {}, additionalProperties: false, required: [] }, messages: [], maxTokens: 10 };
+const providerOptions = { provider: 'openai', key: 'test-only' };
+const isCanceled = error => error.status === 499 && /canceled/.test(error.message);
 
 test('runtime selection prefers OpenAI, falls back to Groq only when no OpenAI key is configured', () => {
   const env = { OPENAI_API_KEY: 'openai-test-only', GROQ_API_KEY: 'groq-test-only', GROQ_MODEL: 'groq-custom' };
@@ -81,6 +85,46 @@ test('OpenAI errors are sanitized and never automatically send the same data to 
   }
   await assert.rejects(generateDecisionPriorities(decisionInput, { provider: 'openai', key: '', fetchImpl: async () => assert.fail('Missing keys must not call the provider') }), e => e.status === 503 && e.message.includes('OPENAI_API_KEY'));
   await assert.rejects(generateDecisionPriorities(decisionInput, { provider: 'openai', key: 'test-only', fetchImpl: async () => { throw new TypeError('private diagnostics'); } }), e => e.status === 504 && e.message.includes('OpenAI') && !e.message.includes('private'));
+});
+
+test('already canceled requests never contact the provider', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(generateStructuredResult(structuredRequest, {
+    ...providerOptions, signal: controller.signal,
+    fetchImpl: async () => assert.fail('Canceled requests must not call the provider'),
+  }), isCanceled);
+});
+
+test('caller cancellation reaches an in-flight provider request', async () => {
+  const controller = new AbortController();
+  await assert.rejects(generateStructuredResult(structuredRequest, {
+    ...providerOptions, signal: controller.signal,
+    fetchImpl: async (_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      controller.abort();
+    }),
+  }), isCanceled);
+});
+
+test('caller cancellation during response-body reading is not an unreadable-response error', async () => {
+  const controller = new AbortController();
+  await assert.rejects(generateStructuredResult(structuredRequest, {
+    ...providerOptions, signal: controller.signal,
+    fetchImpl: async () => ({ status: 200, ok: true, json: async () => {
+      controller.abort();
+      throw new DOMException('private cancellation details', 'AbortError');
+    } }),
+  }), error => isCanceled(error) && !error.message.includes('private'));
+});
+
+test('timeout during response-body reading remains a sanitized timeout error', async () => {
+  await assert.rejects(generateStructuredResult(structuredRequest, {
+    ...providerOptions,
+    fetchImpl: async () => ({ status: 200, ok: true, json: async () => {
+      throw new DOMException('private timeout details', 'TimeoutError');
+    } }),
+  }), error => error.status === 504 && /too long/.test(error.message) && !error.message.includes('private'));
 });
 
 test('HTTP health reports the selected provider using only public status fields', async t => {

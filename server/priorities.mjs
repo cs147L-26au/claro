@@ -20,7 +20,7 @@ export function validateResult(result, factors) {
       !result.factors.every(f => f && factors.some(input => input.id === f.id) && Number.isInteger(f.weight) && f.weight >= 0 && f.weight <= 100 &&
         typeof f.reason === 'string' && f.reason.trim().length > 0 && f.reason.length <= 800) ||
       result.factors.reduce((n, f) => n + f.weight, 0) !== 100) {
-    throw new ApiError(502, 'The AI returned an incomplete suggestion. Please try again; your priorities have not changed.');
+    throw new ApiError(502, 'Our suggestion was incomplete. Please try again; your priorities have not changed.');
   }
   return { summary: result.summary, factors: result.factors.map(({id, weight, reason}) => ({id, weight, reason})) };
 }

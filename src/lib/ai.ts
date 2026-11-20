@@ -4,13 +4,16 @@ import { Factor, validateFactors } from './model';
 import { DecisionBrief, requestDecisionPriorities } from './decision-ai';
 import type { DecisionPlanInput } from './decision-plan';
 import { requestDecisionPlan } from './decision-plan-client';
+import { resolveApiUrl } from './api-url';
 export type Suggestion = { summary: string; factors: { id: string; weight: number; reason: string }[] };
 function apiUrl() {
-  const configured = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
-  if (configured) return configured;
-  if (!__DEV__) throw new Error('Recommendations are not connected in this build. Please try again once the service is available.');
-  const host = Constants.expoConfig?.hostUri?.split(':')[0];
-  return `http://${host || (Platform.OS === 'android' ? '10.0.2.2' : 'localhost')}:8787`;
+  return resolveApiUrl({
+    configuredUrl: process.env.EXPO_PUBLIC_API_URL,
+    development: __DEV__,
+    platform: Platform.OS,
+    browserHostname: Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.hostname : undefined,
+    expoHostUri: Constants.expoConfig?.hostUri,
+  });
 }
 export function suggestDecisionPriorities(brief: DecisionBrief, signal?: AbortSignal) {
   return requestDecisionPriorities(apiUrl(), brief, { signal });
@@ -28,17 +31,17 @@ export async function suggestPriorities(context: string, factors: Factor[]): Pro
       signal: controller.signal,
     });
     const body = await response.json();
-    if (!response.ok) throw new Error(body.error || 'AI is unavailable right now. Please try again.');
+    if (!response.ok) throw new Error(body.error || 'Recommendations are unavailable. Please try again.');
     if (!body || typeof body.summary !== 'string' || !Array.isArray(body.factors) || body.factors.length !== factors.length ||
       new Set(body.factors.map((f: { id: string }) => f.id)).size !== factors.length ||
       !body.factors.every((f: { id: string; reason: string }) => factors.some(x => x.id === f.id) && typeof f.reason === 'string') ||
       !validateFactors(factors.map(f => ({ ...f, weight: body.factors.find((r: { id: string }) => r.id === f.id)?.weight })))) {
-      throw new Error('The AI response was incomplete. Your priorities have not changed. Please try again.');
+      throw new Error('The response was incomplete. Please try again.');
     }
     return body;
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') throw new Error('AI took too long to respond. Please try again.');
-    if (error instanceof TypeError) throw new Error('Cannot reach the AI service. Start npm run api on your computer and check that both devices are on the same Wi-Fi.');
+    if (error instanceof Error && error.name === 'AbortError') throw new Error('The request took too long. Please try again.');
+    if (error instanceof TypeError) throw new Error('Cannot reach Claro. Check your connection and try again.');
     throw error;
   } finally { clearTimeout(timeout); }
 }

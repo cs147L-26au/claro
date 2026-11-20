@@ -11,7 +11,7 @@ export function resolveAiProvider(options = {}, env = process.env) {
   const injectedKey = Object.hasOwn(options, 'key');
   const id = options.provider || (injectedKey ? 'groq' : env.OPENAI_API_KEY?.trim() ? 'openai' : 'groq');
   const provider = providers[id];
-  if (!provider) throw new ApiError(503, 'The configured AI provider is not supported.');
+  if (!provider) throw new ApiError(503, 'The configured recommendation provider is not supported.');
   return {
     ...provider, id,
     key: (injectedKey ? options.key : env[provider.keyVariable])?.trim() || '',
@@ -26,12 +26,21 @@ export function aiStatus(env = process.env) {
 
 export async function generateStructuredResult({ schemaName, schema, messages, maxTokens }, options = {}) {
   const provider = resolveAiProvider(options);
-  if (!provider.key) throw new ApiError(503, 'AI is not connected yet. Add an OpenAI API key (OPENAI_API_KEY) or a Groq API key (GROQ_API_KEY) to the server’s .env file, then restart the API server.');
+  if (!provider.key) throw new ApiError(503, 'Recommendations are not connected yet. Add an OpenAI API key (OPENAI_API_KEY) or a Groq API key (GROQ_API_KEY) to the server’s .env file, then restart the API server.');
   const fetchImpl = options.fetchImpl || fetch;
+  const timeout = AbortSignal.timeout(30000);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+  const interrupted = error => {
+    if (options.signal?.aborted) return new ApiError(499, 'Analysis canceled. Your details are still here.');
+    if (signal.aborted || ['TimeoutError', 'AbortError'].includes(error?.name))
+      return new ApiError(504, 'The recommendation took too long. Please try again.');
+    return null;
+  };
   let response;
   try {
+    signal.throwIfAborted();
     response = await fetchImpl(provider.endpoint, {
-      method: 'POST', signal: AbortSignal.timeout(30000),
+      method: 'POST', signal,
       headers: { Authorization: `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: provider.model, temperature: 0.3, max_completion_tokens: maxTokens,
@@ -40,17 +49,17 @@ export async function generateStructuredResult({ schemaName, schema, messages, m
       }),
     });
   } catch (error) {
-    throw new ApiError(504, ['TimeoutError', 'AbortError'].includes(error?.name)
-      ? 'The AI took too long. Please try again.' : `Could not reach ${provider.name}. Please try again shortly.`);
+    throw interrupted(error) || new ApiError(504, `Could not reach ${provider.name}. Please try again shortly.`);
   }
   if (response.status === 429) throw new ApiError(429, `The ${provider.name} usage or rate limit has been reached. Check the provider account or wait, then try again.`);
-  if ([401, 403].includes(response.status)) throw new ApiError(503, `The AI service key was rejected. Check the ${provider.name} key and model access on the server.`);
-  if (!response.ok) throw new ApiError(502, 'The AI service is unavailable. Please try again shortly.');
+  if ([401, 403].includes(response.status)) throw new ApiError(503, `The recommendation service key was rejected. Check the ${provider.name} key and model access on the server.`);
+  if (!response.ok) throw new ApiError(502, 'The recommendation service is unavailable. Please try again shortly.');
   try {
     const payload = await response.json();
+    signal.throwIfAborted();
     if (payload.choices?.[0]?.finish_reason !== 'stop') throw new Error('Incomplete completion');
     return JSON.parse(payload.choices[0].message.content);
-  } catch {
-    throw new ApiError(502, 'The AI response could not be read. Please try again.');
+  } catch (error) {
+    throw interrupted(error) || new ApiError(502, 'The recommendation response could not be read. Please try again.');
   }
 }
